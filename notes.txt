@@ -1,0 +1,1 @@
+use pip3 to install matplotlib to run it with streamlit if not working on your pc
