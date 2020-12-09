@@ -1,1 +1,1 @@
-web: sh setup.sh && streamlit run dota_analzyer.py
+web: sh setup.sh && streamlit run dota_analyzer.py
