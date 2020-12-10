@@ -30,7 +30,7 @@ st.sidebar.markdown(link, unsafe_allow_html=True)
 
 
 player_id = st.text_input("Please input the player ID: ", "e.g. 128683292")
-# player_id = 128683292 # Default value
+player_id = 128683292 # Default value
 
 
 
@@ -53,13 +53,29 @@ if st.button('Don\'t forget to press enter up top!'):
     j_player_winrate = r_player_winrate.json()
     player_table = pd.DataFrame.from_dict(j_player_winrate)
     player_table['hero_id'] = player_table['hero_id'].astype(int)
-    player_table
+    # player_table
 
     table = pd.merge(hero_table, player_table, on='hero_id')
     table_shown = table.set_index("localized_name")
     table_shown = table_shown[['games','win']]
+    table_shown = table_shown.rename(columns={'games':'Total games','win':'Games won'})
     st.header("This is the player's hero stats!")
     st.write(table_shown)
+
+    # ++++++++++++++++++++++++++++++++++ #
+    # First Streamlit: Interactive Graph #
+    # ++++++++++++++++++++++++++++++++++ #
+
+    st_int_graph1 = table_shown
+    st_int_graph1.index.names = ['Hero']
+    # Notes:
+    # There's some weird interaction with Streamlit's function, it doesn't show the values properly.
+    # So we have to manually do some inversion until they fix it
+    # st_int_graph1 = st_int_graph1.rename(columns={'Total games':'a', 'Games won': 'b'})
+    # st_int_graph1 = st_int_graph1.rename(columns={'a': 'Games Won', 'b':'Total Games'})
+    # st_int_graph1
+    st.write("Some interactive graph, courtesy of **Streamlit**! There's a catch tho, the bar color is inverted, and since it's analyzing the dataframe to plot the bar chart on the backend, there's not a lot of way to tweak it.")
+    st.bar_chart(st_int_graph1)
 
     sort_options ='win'
     option_top = 10
@@ -104,6 +120,7 @@ if st.button('Don\'t forget to press enter up top!'):
     st.write("""
     
     """)
+
     # +++++++++++++++++++++++++++++ #
     # Second: Graph on Absolute Win #
     # +++++++++++++++++++++++++++++ #
@@ -118,11 +135,11 @@ if st.button('Don\'t forget to press enter up top!'):
     fig2 = plt.figure(figsize=(20, 10))
     ax2 = fig2.add_subplot()
     ax2.bar(topn.index, topn.win, color=color_list)
-    ax2.set_title("Absolute win count by Top 10 heroes")
+    ax2.set_title("Top 10 Heroes with Most Games Win")
     ax2.set_xlabel("Top " +str(option_top) +" Heroes")
     plt.xticks(rotation=90)
     ax2.set_ylabel("Win Rate").set_rotation(0)
-    plt.ylabel("Win Rate",labelpad=60)
+    plt.ylabel("Games Won",labelpad=60)
     st.pyplot(fig2)
 
     # +++++++++++++++++++++++++++++++++++++++++++++++ #
@@ -137,6 +154,13 @@ if st.button('Don\'t forget to press enter up top!'):
     scatter_table_agi = scatter_table.loc[scatter_table['primary_attr'] == "agi"]
     scatter_table_int = scatter_table.loc[scatter_table['primary_attr'] == "int"]
 
+    str_ave = scatter_table_str.win_rate.mean()
+    agi_ave = scatter_table_agi.win_rate.mean()
+    int_ave = scatter_table_int.win_rate.mean()
+
+    ave_list = [str_ave, agi_ave, int_ave]
+    ave_list_color = ['r','g','b']
+
     fig3 = plt.figure(figsize=(20, 10))
     # plt.rcParams.update({'font.size': 22})
     ax3 = fig3.add_subplot()
@@ -148,9 +172,49 @@ if st.button('Don\'t forget to press enter up top!'):
     ax3.set_xlabel("Hero IDs")
     ax3.set_ylabel("Win Rate (%)")
     ax3.legend(prop=dict(size=18), loc='lower right')
+
+    # Draw a line to show average
+    ax3.plot([0,len(hero_table.index)],[str_ave, str_ave],color='r')
+    ax3.plot([0,len(hero_table.index)],[agi_ave, agi_ave],color='g')
+    ax3.plot([0,len(hero_table.index)],[int_ave, int_ave],color='b')
+
+
+    ax3.scatter(len(hero_table.index)+20, (max([str_ave, agi_ave, int_ave])), marker=".", color='w')
+    ax3.text(len(hero_table.index)+1,(max(ave_list)),"Highest average!",fontsize=15,color=ave_list_color[ave_list.index(max(ave_list))])
+
     st.pyplot(fig3)
 
-    st.write("Note to self: Add a line later to see on average which attribute is better for the player")
+    # +++++++++++++++++++++++++ #
+    # Analysis of Top 10 Heroes #
+    # +++++++++++++++++++++++++ #  
+
+    topn2 = topn
+    topn2_str = topn2.loc[topn2['primary_attr'] == "str"]
+    topn2_agi = topn2.loc[topn2['primary_attr'] == "agi"]
+    topn2_int = topn2.loc[topn2['primary_attr'] == "int"]
+
+    topn2 = topn2.rename(columns={'win_rate':'Win Rate (%)','win':'Total Games Won'})
+    # Just setting Total Games for Graph Reasons
+    topn2['Total Games'] = topn2.games - topn2['Total Games Won']
+    topn2 = topn2.drop(columns=['against_games','against_win', 'with_games','with_win'])
+
+    fig4 = plt.figure(figsize=(20, 10))
+    ax4 = fig4.add_subplot()
+    ax4.bar(topn2.index, topn2.games, label = "Total Games")
+    # ax4.bar(topn2.index, (topn2.games - topn2['Total Games Won']), label = "Total Games")
+    ax4.bar(topn2.index, topn2['Total Games Won'], label='Games Won', color='g')
+    ax4.set_xlabel("Heroes")
+    ax4.set_ylabel("Matches")
+    ax4.legend()
+    plt.xticks(rotation=90)
+
+    for hero in topn2.index:
+        ax4.scatter(hero, topn2.loc[topn2.index == hero, "games"]+100, marker=".", color='w')
+
+    for hero in topn2.index:
+        ax4.text(hero,(topn2.loc[topn2.index == hero, "games"]+5),str(round(topn2.loc[topn2.index == hero, "Win Rate (%)"].iloc[0],1)),fontsize=15,color='r')
+
+    st.pyplot(fig4)
 
     # +++++++++++++++++++++ #
     # Machine Learning Part #
